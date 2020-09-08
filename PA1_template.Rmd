@@ -5,21 +5,99 @@ output:
     keep_md: true
 ---
 
+## Load libraries
+```{r}
+library(tidyverse)
+library(lattice)
+```
 
 ## Loading and preprocessing the data
 
-
+```{r}
+data <- read_csv("activity.csv")
+data$date <- as.Date(data$date, "%y-%m-%d")
+```
 
 ## What is mean total number of steps taken per day?
 
+```{r}
+sum_steps <- data %>% 
+  group_by(date) %>% 
+  summarize(sum = sum(steps, na.rm = TRUE))
 
+hist(sum_steps$sum, 
+     breaks = 20, 
+     main = "", 
+     xlab = "Total daily steps")
+
+mean_daily_steps <- mean(sum_steps$sum)
+median_daily_steps <- median(sum_steps$sum)
+```
+
+Calculated main daily steps is `r mean_daily_steps` and median daily steps is `r median_daily_steps`.
 
 ## What is the average daily activity pattern?
 
+```{r}
+mean_steps_by_int <- data %>% 
+  group_by(interval) %>% 
+  summarize(mean = mean(steps, na.rm = TRUE))
 
+with(mean_steps_by_int, 
+     plot(interval, mean, 
+          ylab = "Mean steps",
+          xlab = "5-minute interval",
+          type = 'l'))
+
+max_interval <- mean_steps_by_int[[which.max(mean_steps_by_int$mean), "interval"]]
+```
+
+The interval which contains the maximum number of steps on average is `r max_interval`.
 
 ## Imputing missing values
 
+```{r}
+missing_no <- sum(complete.cases(data))
 
+impute.mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
+data_imputed <- data %>% 
+  group_by(interval) %>%
+  mutate(steps = impute.mean(steps))
+
+sum_steps_imputed <- data_imputed %>% 
+  group_by(date) %>% 
+  summarize(sum = sum(steps))
+
+hist(sum_steps_imputed$sum, 
+     breaks = 20, 
+     main = "", 
+     xlab = "Total daily steps")
+
+mean_daily_steps_imputed <- mean(sum_steps_imputed$sum)
+median_daily_steps_imputed <- median(sum_steps_imputed$sum)
+
+```
+
+There are `r missing_no` rows containing NAs. Following imputation by using the mean value of steps at that interval across all days, the recalculated mean total steps per day was `r mean_daily_steps_imputed` and the median was `r median_daily_steps_imputed`. These values are identical to each other and are larger than the values calculated above. This method of imputation added many cases of the same value to the dataset, which was the mean, therefore causing a higher peak than normal, as visible on the histogram. A more sophisticated imputation method may have dampened this effect.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+is.weekday <- function(x) ifelse(weekdays(x) %in% c("Saturday","Sunday"), "weekend", "weekday")
+
+data_imputed <- data_imputed %>% mutate(day_of_week = as.factor(is.weekday(date)))
+data_imputed_means <- data_imputed %>% group_by(interval, day_of_week) %>% summarize(mean = mean(steps))
+
+xyplot(mean ~ interval | day_of_week, 
+       data = data_imputed_means, 
+       type = 'l', 
+       layout = c(1, 2), 
+       ylab = 'Number of steps')
+```
+
+There are some apparent differences in activity patterns between weekdays and weekends. 
+
+- Activity tends to begin earlier on weekdays.
+- There are spikes around interval 800 in each set, but the spike is higher on weekdays than weekends.
+- Midday, activity seems to be slightly higher on weekends than weekdays.
+- Activity is slightly more active later on weekends than on weekdays.
